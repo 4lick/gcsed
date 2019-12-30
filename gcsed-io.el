@@ -137,6 +137,48 @@ This will only run if FILE-OR-DIRECTORY is in the gcsed-tmp-gcs-dir."
       (concat (mapconcat 'identity (-drop-last 2 (split-string path "/")) "/") "/")
     (concat (mapconcat 'identity (-drop-last 1 (split-string path "/")) "/") "/")))
 
+;; Refresh
+
+(defun gcsed-refresh-tmp-dir (&optional input-dir)
+  "Refresh all active gcsed buffers, including INPUT-DIR if provided."
+  (let* ((all-active-files-dirs (--map (with-current-buffer it (if (gcsed-is-dired-active)
+                                                                   default-directory
+                                                                 buffer-file-name))
+                                       (buffer-list)))
+         (all-gcsed-files-dirs (--separate (gcsed-is-directory
+                                              (gcsed-local-path-to-gcs-path it))
+                                             (--filter (gcsed-string-starts-with
+                                                        it gcsed-tmp-gcs-dir)
+                                                       (add-to-list 'all-active-files-dirs
+                                                                    input-dir))))
+         (active-directory (condition-case nil (if (gcsed-is-dired-active) default-directory
+                                                          (gcsed-parent-directory buffer-file-name))
+                                      (error nil))))
+    (when active-directory (make-directory active-directory t))
+    ;;(gcsed-rm gcsed-tmp-gcs-dir)
+
+    (dolist (current-directory (car all-gcsed-files-dirs))
+      (make-directory current-directory t)
+      (when (or (equal current-directory active-directory) (equal current-directory input-dir))
+          (let* ((gcs-directory (gcsed-local-path-to-gcs-path current-directory))
+                 (file-list (-filter (lambda (f) f) (gcsed-gcs-ls gcs-directory)))
+                 (full-gcs-paths (-map (lambda (file) (concat gcs-directory file))
+                                      file-list))
+                 (organized-file-list (--separate (gcsed-is-directory it) full-gcs-paths))
+                 (gcs-dirs (-map (lambda (f) (gcsed-gcs-path-to-local-path f))
+                                (car organized-file-list)))
+                 (gcs-files (-map (lambda (f) (gcsed-gcs-path-to-local-path f))
+                                 (car (-take-last 1 organized-file-list)))))
+
+            ;; reset local tmp directory and delete the current directory
+            ;; rebuild from files gcs
+            (when gcs-dirs (gcsed-mkdirs gcs-dirs))
+            (when gcs-files (gcsed-create-empty-files gcs-files)))))
+
+    (dolist (current-file (car (-take-last 1 all-gcsed-files-dirs)))
+      (let ((gcs-file (gcsed-local-path-to-gcs-path current-file)))
+        (gcsed-gcs-cp gcs-file current-file)))))
+
 (provide 'gcsed-io)
 
 ;;; gcsed-io.el ends here
