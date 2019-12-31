@@ -64,7 +64,7 @@
   "Remove file or directory PATH from gcs. If specified, this will be a ASYNC operation."
   (let ((msg (format "%s: Removing data from gcs%s..." gcsed-app-name
                      (if async " in the background" "")))
-        (command (format "gsutil rm %s %s" path)))
+        (command (format "gsutil rm %s" path)))
     (if async
         (progn
           (apply 'start-process "gcsed-rm" "*gcsed*" (split-string command))
